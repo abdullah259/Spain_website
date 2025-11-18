@@ -1,20 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, Home as HomeIcon, TrendingUp, Wrench, Star } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import PropertySlideshow from '@/components/PropertySlideshow';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { trpc } from '@/lib/trpc';
+import { useProperties, useFeaturedProperties, useFeaturedProjects, useFeaturedTestimonials } from '@/hooks/useSanityQuery';
+import { convertSanityProperty, convertSanityProject, convertSanityTestimonial } from '@/lib/sanityUtils';
+import type { Property, Project, Testimonial } from '../../../drizzle/schema';
 
 export default function Home() {
   const { language, t } = useLanguage();
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
-  // Fetch data
-  const { data: allProperties = [] } = trpc.properties.getAll.useQuery({ type: 'venta' });
-  const { data: featuredProjects = [] } = trpc.projects.getFeatured.useQuery();
-  const { data: testimonials = [] } = trpc.testimonials.getFeatured.useQuery();
+  // Fetch data from Sanity
+  // Note: 'venta' maps to 'sale' in Sanity schema
+  const { data: allPropertiesRaw = [], isLoading: isLoadingProperties, error: propertiesError } = useProperties('venta');
+  const { data: featuredPropertiesRaw = [], isLoading: isLoadingFeaturedProperties, error: featuredError } = useFeaturedProperties(4);
+  const { data: featuredProjectsRaw = [], isLoading: isLoadingFeaturedProjects } = useFeaturedProjects(3);
+  const { data: testimonialsRaw = [], isLoading: isLoadingTestimonials } = useFeaturedTestimonials(4);
+
+  // Convert Sanity data to component format
+  const allProperties = useMemo(() => {
+    if (!Array.isArray(allPropertiesRaw)) return [];
+    return allPropertiesRaw.map(convertSanityProperty);
+  }, [allPropertiesRaw]) as Property[];
+
+  const featuredProperties = useMemo(() => {
+    if (!Array.isArray(featuredPropertiesRaw)) return [];
+    const converted = featuredPropertiesRaw.map(convertSanityProperty);
+    // If no featured properties, fallback to showing first 3 active properties
+    console.log('converted', featuredPropertiesRaw);
+    if (converted.length === 0 && allProperties.length > 0) {
+      return allProperties.slice(0, 3);
+    }
+    return converted;
+  }, [featuredPropertiesRaw, allProperties]) as Property[];
+
+  const featuredProjects = useMemo(() => {
+    if (!Array.isArray(featuredProjectsRaw)) return [];
+    return featuredProjectsRaw.map(convertSanityProject);
+  }, [featuredProjectsRaw]) as Project[];
+
+  const testimonials = useMemo(() => {
+    if (!Array.isArray(testimonialsRaw)) return [];
+    return testimonialsRaw.map(convertSanityTestimonial);
+  }, [testimonialsRaw]) as Testimonial[];
+
 
   // Auto-rotate testimonials
   useEffect(() => {
@@ -58,15 +90,14 @@ export default function Home() {
       <Header />
 
       {/* Interactive Property Slideshow */}
-      {allProperties.length > 0 && (
-        <PropertySlideshow
-          properties={allProperties}
-          videoUrl="https://videos.pexels.com/video-files/3571999/3571999-sd_640_360_25fps.mp4"
-        />
-      )}
+      <PropertySlideshow
+        properties={allProperties}
+        videoUrl="https://videos.pexels.com/video-files/3571999/3571999-sd_640_360_25fps.mp4"
+        isLoading={isLoadingProperties}
+      />
 
       {/* Three Pillars Section */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white relative z-10">
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-[#1a2f4a] mb-12 text-center">
             {language === 'ar'
@@ -80,56 +111,101 @@ export default function Home() {
               : 'Unsere Dienstleistungen'}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pillars.map((pillar, index) => {
-              const Icon = pillar.icon;
-              return (
-                <a
-                  key={index}
-                  href={pillar.href}
-                  className={`${pillar.color} ${pillar.borderColor} p-8 rounded-lg hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-2`}
-                >
-                  <Icon size={48} className="text-[#d4af37] mb-4" />
-                  <h3 className="text-2xl font-bold text-[#1a2f4a] mb-3">{t(pillar.titleKey)}</h3>
-                  <p className="text-gray-700 mb-4">{t(pillar.descKey)}</p>
-                  <div className="flex items-center text-[#d4af37] font-semibold hover:text-[#1a2f4a] transition-colors">
-                    <span>
-                      {language === 'ar'
-                        ? 'معرفة المزيد'
-                        : language === 'es'
-                        ? 'Conocer más'
-                        : language === 'en'
-                        ? 'Learn more'
-                        : language === 'fr'
-                        ? 'En savoir plus'
-                        : 'Mehr erfahren'}
-                    </span>
-                    <ChevronRight size={20} className="ml-2" />
-                  </div>
-                </a>
-              );
-            })}
-          </div>
+          {pillars && pillars.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {pillars.map((pillar, index) => {
+                const Icon = pillar.icon;
+                const title = t(pillar.titleKey);
+                const description = t(pillar.descKey);
+                return (
+                  <a
+                    key={index}
+                    href={pillar.href}
+                    className={`${pillar.color} ${pillar.borderColor} p-8 rounded-lg hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-2 block min-h-[300px]`}
+                  >
+                    <Icon size={48} className="text-[#d4af37] mb-4" />
+                    <h3 className="text-2xl font-bold text-[#1a2f4a] mb-3">{title || pillar.titleKey}</h3>
+                    <p className="text-gray-700 mb-4">{description || pillar.descKey}</p>
+                    <div className="flex items-center text-[#d4af37] font-semibold hover:text-[#1a2f4a] transition-colors">
+                      <span>
+                        {language === 'ar'
+                          ? 'معرفة المزيد'
+                          : language === 'es'
+                          ? 'Conocer más'
+                          : language === 'en'
+                          ? 'Learn more'
+                          : language === 'fr'
+                          ? 'En savoir plus'
+                          : 'Mehr erfahren'}
+                      </span>
+                      <ChevronRight size={20} className="ml-2" />
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-600">No services available</p>
+            </div>
+          )}
         </div>
       </section>
 
       {/* Featured Properties Section */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-gray-50 relative z-10">
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-[#1a2f4a] mb-12 text-center">
             {t('featuredProperties')}
           </h2>
 
-          {allProperties.length > 0 ? (
+          {isLoadingFeaturedProperties ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600">
+                {language === 'ar'
+                  ? 'جاري التحميل...'
+                  : language === 'es'
+                  ? 'Cargando...'
+                  : language === 'en'
+                  ? 'Loading...'
+                  : language === 'fr'
+                  ? 'Chargement...'
+                  : 'Wird geladen...'}
+              </p>
+            </div>
+          ) : featuredError ? (
+            <div className="text-center py-12">
+              <p className="text-red-600">
+                {language === 'ar'
+                  ? 'حدث خطأ في تحميل البيانات'
+                  : language === 'es'
+                  ? 'Error al cargar las propiedades'
+                  : language === 'en'
+                  ? 'Error loading properties'
+                  : language === 'fr'
+                  ? 'Erreur lors du chargement des propriétés'
+                  : 'Fehler beim Laden der Immobilien'}
+              </p>
+              <p className="text-sm text-gray-500 mt-2">{featuredError.message}</p>
+            </div>
+          ) : featuredProperties && featuredProperties.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {allProperties.slice(0, 3).map((property) => (
+              {featuredProperties.slice(0, 3).map((property) => (
                 <div key={property.id} className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all">
-                  {property.imageUrl && (
+                  {property.imageUrl ? (
                     <img
                       src={property.imageUrl}
-                      alt={property.titleEs}
+                      alt={property.titleEs || 'Property'}
                       className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails
+                        (e.target as HTMLImageElement).src = `https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&h=300&fit=crop`;
+                      }}
                     />
+                  ) : (
+                    <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-400">No Image</span>
+                    </div>
                   )}
                   <div className="p-6">
                     <h3 className="text-lg font-bold text-[#1a2f4a] mb-2">
@@ -143,9 +219,9 @@ export default function Home() {
                         ? property.titleDe || property.titleEn
                         : property.titleAr || property.titleEn}
                     </h3>
-                    <p className="text-gray-600 text-sm mb-4">{property.location}</p>
+                    <p className="text-gray-600 text-sm mb-4">{property.location || 'N/A'}</p>
                     <p className="text-2xl font-bold text-[#d4af37] mb-4">
-                      {property.price ? `${(property.price).toLocaleString()} EUR` : 'N/A'}
+                      {property.price ? `${(property.price).toLocaleString()} ${property.currency || 'EUR'}` : 'N/A'}
                     </p>
                     <button className="w-full btn-primary">
                       {t('viewDetails')}
@@ -158,14 +234,14 @@ export default function Home() {
             <div className="text-center py-12">
               <p className="text-gray-600">
                 {language === 'ar'
-                  ? 'لا توجد عقارات متاحة حالياً'
+                  ? 'لا توجد عقارات مميزة متاحة حالياً'
                   : language === 'es'
-                  ? 'No hay propiedades disponibles'
+                  ? 'No hay propiedades destacadas disponibles'
                   : language === 'en'
-                  ? 'No properties available'
+                  ? 'No featured properties available'
                   : language === 'fr'
-                  ? 'Aucune propriété disponible'
-                  : 'Keine Immobilien verfügbar'}
+                  ? 'Aucune propriété en vedette disponible'
+                  : 'Keine ausgewählten Immobilien verfügbar'}
               </p>
             </div>
           )}

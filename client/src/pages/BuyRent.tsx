@@ -4,7 +4,9 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { trpc } from '@/lib/trpc';
+import { useProperties } from '@/hooks/useSanityQuery';
+import { convertSanityProperty } from '@/lib/sanityUtils';
+import type { Property } from '../../../drizzle/schema';
 
 export default function BuyRent() {
   const { language, t, currency, exchangeRates } = useLanguage();
@@ -27,10 +29,14 @@ export default function BuyRent() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
-  // Fetch properties
-  const { data: allProperties = [] } = trpc.properties.getAll.useQuery({
-    type: searchType,
-  });
+  // Fetch properties from Sanity
+  const { data: allPropertiesRaw = [], isLoading } = useProperties(searchType);
+  
+  // Convert Sanity data to component format
+  const allProperties = useMemo(() => 
+    allPropertiesRaw.map(convertSanityProperty),
+    [allPropertiesRaw]
+  ) as Property[];
 
   const convertPrice = (price: number, baseCurrency: string = 'EUR') => {
     const rate = exchangeRates[currency as keyof typeof exchangeRates] || 1;

@@ -6,9 +6,43 @@ import type { Property } from '../../../drizzle/schema';
 interface PropertySlideshowProps {
   properties: Property[];
   videoUrl?: string | null;
+  isLoading?: boolean;
 }
 
-export default function PropertySlideshow({ properties }: PropertySlideshowProps) {
+// Create placeholder properties for when there are no real properties
+const createPlaceholderProperties = (): Property[] => {
+  return Array.from({ length: 8 }, (_, i) => ({
+    id: i + 1,
+    titleEs: `Propiedad Destacada ${i + 1}`,
+    titleEn: `Featured Property ${i + 1}`,
+    titleFr: `Propriété en Vedette ${i + 1}`,
+    titleDe: `Ausgewählte Immobilie ${i + 1}`,
+    titleAr: `عقار مميز ${i + 1}`,
+    descriptionEs: 'Hermosa propiedad disponible',
+    descriptionEn: 'Beautiful property available',
+    descriptionFr: 'Belle propriété disponible',
+    descriptionDe: 'Schöne Immobilie verfügbar',
+    descriptionAr: 'عقار جميل متاح',
+    type: 'venta' as const,
+    price: 500000 + (i * 50000),
+    currency: 'EUR',
+    location: 'Spain',
+    imageUrl: null,
+    imageKey: null,
+    bedrooms: 3 + i,
+    bathrooms: 2,
+    squareMeters: 100 + (i * 20),
+    squareFeet: null,
+    yearBuilt: 2020,
+    propertyType: 'apartment',
+    featured: true,
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }));
+};
+
+export default function PropertySlideshow({ properties, isLoading = false }: PropertySlideshowProps) {
   const { language, currency, exchangeRates } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -25,21 +59,21 @@ export default function PropertySlideshow({ properties }: PropertySlideshowProps
     '/property-8.jpg',      // Mediterranean luxury villa
   ];
 
+  // Use placeholder properties if no real properties are available
+  const displayProperties = properties.length > 0 ? properties : createPlaceholderProperties();
+  const maxSlides = Math.min(displayProperties.length, 8);
+
   useEffect(() => {
-    if (!isPlaying || properties.length === 0) return;
+    if (!isPlaying || maxSlides === 0) return;
 
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % Math.min(properties.length, 8));
+      setCurrentIndex((prev) => (prev + 1) % maxSlides);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [isPlaying, properties.length]);
+  }, [isPlaying, maxSlides]);
 
-  if (properties.length === 0) {
-    return <div className="h-96 bg-gray-200 flex items-center justify-center">No properties available</div>;
-  }
-
-  const currentProperty = properties[currentIndex];
+  const currentProperty = displayProperties[currentIndex];
   const currentImageUrl = propertyImages[currentIndex % 8];
 
   const convertPrice = (price: number | null) => {
@@ -88,33 +122,44 @@ export default function PropertySlideshow({ properties }: PropertySlideshowProps
   };
 
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + Math.min(properties.length, 8)) % Math.min(properties.length, 8));
+    setCurrentIndex((prev) => (prev - 1 + maxSlides) % maxSlides);
     setIsPlaying(false);
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % Math.min(properties.length, 8));
+    setCurrentIndex((prev) => (prev + 1) % maxSlides);
     setIsPlaying(false);
   };
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
       {/* Background Image with Gradient Overlay */}
-      <div
-        className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(26, 47, 74, 0.5) 0%, rgba(58, 58, 58, 0.5) 100%), url('${currentImageUrl}')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      />
+      <div className="absolute inset-0 w-full h-full">
+        <img
+          src={currentImageUrl}
+          alt={getTitle()}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // Fallback if image fails to load
+            console.warn(`Failed to load image: ${currentImageUrl}`);
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+        <div
+          className="absolute inset-0 w-full h-full"
+          style={{
+            background: 'linear-gradient(135deg, rgba(26, 47, 74, 0.5) 0%, rgba(58, 58, 58, 0.5) 100%)',
+          }}
+        />
+      </div>
 
       {/* Content Overlay */}
       <div className="absolute inset-0 flex flex-col justify-between p-8 md:p-16">
         {/* Top Counter */}
         <div className="flex justify-start items-start">
           <span className="text-white text-sm font-semibold bg-black bg-opacity-60 px-4 py-2 rounded-full">
-            {currentIndex + 1} / {Math.min(properties.length, 8)}
+            {currentIndex + 1} / {maxSlides}
+            {isLoading && <span className="ml-2">(Loading...)</span>}
           </span>
         </div>
 
@@ -213,7 +258,7 @@ export default function PropertySlideshow({ properties }: PropertySlideshowProps
 
           {/* Slide Indicators */}
           <div className="flex space-x-2">
-            {Array.from({ length: Math.min(properties.length, 8) }).map((_, index) => (
+            {Array.from({ length: maxSlides }).map((_, index) => (
               <button
                 key={index}
                 onClick={() => {
