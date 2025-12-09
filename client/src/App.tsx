@@ -15,12 +15,14 @@ import Watchlist from "./pages/Watchlist";
 import Contact from "./pages/Contact";
 import Invest from "./pages/Invest";
 import Construction from "./pages/Construction";
+import PropertyDetail from "./pages/PropertyDetail";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/property/:id"} component={PropertyDetail} />
       <Route path={"/buy-rent"} component={BuyRent} />
       <Route path={"/sell"} component={Sell} />
       <Route path={"/agent"} component={Agent} />

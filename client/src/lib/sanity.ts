@@ -3,9 +3,12 @@ import imageUrlBuilder from '@sanity/image-url';
 import type { SanityImageSource } from '@sanity/image-url/lib/types/types';
 
 // Sanity client configuration
+export const PROJECT_ID = "cy0xkdgi";
+export const DATASET = 'production';
+
 export const sanityClient = createClient({
-  projectId: "cy0xkdgi",
-  dataset: 'production',
+  projectId: PROJECT_ID,
+  dataset: DATASET,
   useCdn: true, // Set to false if statically generating pages, using ISR or using the Studio
   apiVersion: '2024-01-01', // Use current date (YYYY-MM-DD) to target the latest API version
 });

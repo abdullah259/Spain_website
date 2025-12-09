@@ -92,7 +92,7 @@ export default function Home() {
       {/* Interactive Property Slideshow */}
       <PropertySlideshow
         properties={allProperties}
-        videoUrl="https://videos.pexels.com/video-files/3571999/3571999-sd_640_360_25fps.mp4"
+        // videoUrl="https://videos.pexels.com/video-files/3571999/3571999-sd_640_360_25fps.mp4"
         isLoading={isLoadingProperties}
       />
 
