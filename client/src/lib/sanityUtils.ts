@@ -94,6 +94,15 @@ export function convertSanityProperty(sanityProp: SanityProperty): Property {
     } catch {}
   }
 
+  // Resolve video URL
+  let videoUrl: string | null = null;
+  try {
+    videoUrl = resolveImageUrl(sanityProp.video as any);
+  } catch (error) {
+    console.warn('Error resolving property video URL', sanityProp._id, error);
+    videoUrl = null;
+  }
+
   // Map Sanity type values to component type values
   const typeMap: Record<string, 'venta' | 'alquiler' | 'inversion'> = {
     'sale': 'venta',
@@ -105,7 +114,8 @@ export function convertSanityProperty(sanityProp: SanityProperty): Property {
   const mappedType = typeMap[sanityProp.type] || 'venta';
 
   return {
-    id: parseInt(sanityProp._id.replace(/[^0-9]/g, '')) || 0, // Extract numbers from _id or use 0
+    id: parseInt(sanityProp._id.replace(/[^0-9]/g, '')) || Math.random() * 10000, // Extract numbers from _id or generate random
+    sanityId: sanityProp._id,
     titleEs: sanityProp.titleEs,
     titleEn: sanityProp.titleEn,
     titleFr: sanityProp.titleFr || null,
@@ -122,6 +132,8 @@ export function convertSanityProperty(sanityProp: SanityProperty): Property {
     location: sanityProp.location || null,
     imageUrl: imageUrl,
     imageKey: null,
+    videoUrl: videoUrl,
+    videoKey: null,
     bedrooms: sanityProp.bedrooms || null,
     bathrooms: sanityProp.bathrooms || null,
     squareMeters: sanityProp.squareMeters || null,

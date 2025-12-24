@@ -101,12 +101,12 @@ export default function Contact() {
               </h3>
               <p className="text-gray-600">
                 {language === 'es'
-                  ? 'Madrid, España'
+                  ? 'León, España'
                   : language === 'en'
-                  ? 'Madrid, Spain'
+                  ? 'León, Spain'
                   : language === 'fr'
-                  ? 'Madrid, Espagne'
-                  : 'Madrid, Spanien'}
+                  ? 'León, Espagne'
+                  : 'León, Spanien'}
               </p>
             </div>
           </div>

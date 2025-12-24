@@ -15,6 +15,7 @@ interface PropertySlideshowProps {
 const createPlaceholderProperties = (): Property[] => {
   return Array.from({ length: 8 }, (_, i) => ({
     id: i + 1,
+    sanityId: null,
     titleEs: `Propiedad Destacada ${i + 1}`,
     titleEn: `Featured Property ${i + 1}`,
     titleFr: `Propriété en Vedette ${i + 1}`,
@@ -31,6 +32,8 @@ const createPlaceholderProperties = (): Property[] => {
     location: 'Spain',
     imageUrl: null,
     imageKey: null,
+    videoUrl: null,
+    videoKey: null,
     bedrooms: 3 + i,
     bathrooms: 2,
     squareMeters: 100 + (i * 20),
@@ -49,6 +52,7 @@ export default function PropertySlideshow({ properties, isLoading = false }: Pro
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [, setLocation] = useLocation();
+  const [fadeOut, setFadeOut] = useState(false);
 
   // Use placeholder properties if no real properties are available
   const displayProperties = properties.length > 0 ? properties : createPlaceholderProperties();
@@ -66,20 +70,18 @@ export default function PropertySlideshow({ properties, isLoading = false }: Pro
 
   const currentProperty = displayProperties[currentIndex];
   
-  // Get image from Sanity or use fallback
-  const getImageUrl = () => {
-    if (currentProperty.imageUrl) {
-      return currentProperty.imageUrl;
-    }
-    // Fallback placeholder image if no image from Sanity
-    return 'https://via.placeholder.com/1920x1080?text=No+Image+Available';
-  };
-  
-  const currentImageUrl = getImageUrl();
+  // Check if URL is a video
   const isVideoUrl = (url: string | null) => {
     if (!url) return false;
     return /\.(mp4|webm|mov|ogg)(\?|$)/i.test(url);
   };
+  
+  // Get media URL from Sanity - prioritize video if available, otherwise use image
+  const currentVideoUrl = currentProperty.videoUrl || null;
+  const currentImageUrl = currentProperty.imageUrl || null;
+  const currentMediaUrl = currentVideoUrl || currentImageUrl;
+  const hasMedia = currentMediaUrl !== null;
+  const isVideo = currentVideoUrl !== null || (currentImageUrl && isVideoUrl(currentImageUrl));
 
   const convertPrice = (price: number | null) => {
     if (!price) return 0;
@@ -127,32 +129,56 @@ export default function PropertySlideshow({ properties, isLoading = false }: Pro
   };
 
   const handlePrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + maxSlides) % maxSlides);
+    setFadeOut(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev - 1 + maxSlides) % maxSlides);
+      setFadeOut(false);
+    }, 300);
     setIsPlaying(false);
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % maxSlides);
+    setFadeOut(true);
+    setTimeout(() => {
+      setCurrentIndex((prev) => (prev + 1) % maxSlides);
+      setFadeOut(false);
+    }, 300);
     setIsPlaying(false);
   };
 
+  console.log('Current Property in Slideshow:', currentImageUrl);
   return (
     <div className="relative w-full h-screen overflow-hidden">
-      {/* Background Image with Gradient Overlay */}
-      <div className="absolute inset-0 w-full h-full">
-        {isVideoUrl(currentImageUrl) ? (
-          <video className="w-full h-full object-cover" src={currentImageUrl || undefined} autoPlay muted loop playsInline />
+      {/* Background Media (Image or Video) */}
+      <div 
+        className="absolute inset-0 w-full h-full bg-gray-900 transition-opacity duration-300"
+        style={{ opacity: fadeOut ? 0 : 1 }}
+      >
+        {hasMedia ? (
+          isVideo ? (
+            <video 
+              className="w-full h-full object-cover" 
+              src={currentMediaUrl || undefined} 
+              autoPlay 
+              muted 
+              playsInline 
+              onEnded={() => handleNext()}
+            />
+          ) : (
+            <img
+              src={currentMediaUrl || undefined}
+              alt={getTitle()}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.warn(`Failed to load image: ${currentMediaUrl}`);
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          )
         ) : (
-          <img
-            src={currentImageUrl}
-            alt={getTitle()}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Fallback if image fails to load
-              console.warn(`Failed to load image: ${currentImageUrl}`);
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
+          <div className="w-full h-full flex items-center justify-center text-white text-2xl">
+            No Media Available
+          </div>
         )}
       </div>
 
@@ -183,7 +209,12 @@ export default function PropertySlideshow({ properties, isLoading = false }: Pro
 
           <div className="flex space-x-4">
             <button 
-              onClick={() => setLocation(`/property/${currentProperty.id}`)}
+              onClick={() => {
+                  if (currentProperty.sanityId) {
+                    setLocation(`/property/${currentProperty.sanityId}`);
+                  }
+                }
+              }
               className="bg-[#d4af37] hover:bg-[#c9a02d] text-[#1a2f4a] px-8 py-3 rounded-lg font-bold transition-colors"
             >
               {language === 'ar' ? 'عرض التفاصيل' : language === 'es' ? 'Ver Detalles' : language === 'en' ? 'View Details' : language === 'fr' ? 'Voir Détails' : 'Details Ansehen'}

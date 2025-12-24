@@ -52,6 +52,7 @@ export const queries = {
       currency,
       location,
       image,
+      video,
       bedrooms,
       bathrooms,
       squareMeters,
@@ -83,6 +84,7 @@ export const queries = {
       currency,
       location,
       image,
+      video,
       bedrooms,
       bathrooms,
       squareMeters,
@@ -114,6 +116,7 @@ export const queries = {
       currency,
       location,
       image,
+      video,
       bedrooms,
       bathrooms,
       squareMeters,
@@ -230,6 +233,7 @@ export interface SanityProperty {
   currency?: string;
   location?: string;
   image?: SanityImageSource | SanityImageSource[]; // Can be single image or array
+  video?: SanityImageSource; // Video file asset
   bedrooms?: number;
   bathrooms?: number;
   squareMeters?: number;

@@ -30,6 +30,7 @@ export type InsertUser = typeof users.$inferInsert;
  */
 export const properties = mysqlTable("properties", {
   id: int("id").autoincrement().primaryKey(),
+  sanityId: varchar("sanityId", { length: 255 }).unique(),
   titleEs: varchar("titleEs", { length: 255 }).notNull(),
   titleEn: varchar("titleEn", { length: 255 }).notNull(),
   titleFr: varchar("titleFr", { length: 255 }),
@@ -46,6 +47,8 @@ export const properties = mysqlTable("properties", {
   location: varchar("location", { length: 255 }),
   imageUrl: text("imageUrl"),
   imageKey: text("imageKey"),
+  videoUrl: text("videoUrl"),
+  videoKey: text("videoKey"),
   bedrooms: int("bedrooms"),
   bathrooms: int("bathrooms"),
   squareMeters: int("squareMeters"),

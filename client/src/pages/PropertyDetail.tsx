@@ -1,13 +1,14 @@
 import { useParams, useLocation } from 'wouter';
-import { ChevronLeft, MapPin, DollarSign, Ruler, Bed, Bath, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, DollarSign, Ruler, Bed, Bath, Calendar, X } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import WhatsAppButton from '@/components/WhatsAppButton';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useProperties } from '@/hooks/useSanityQuery';
 import { convertSanityProperty } from '@/lib/sanityUtils';
+import { urlFor, PROJECT_ID, DATASET } from '@/lib/sanity';
 import type { Property } from '../../../drizzle/schema';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 export default function PropertyDetail() {
   const params = useParams<{ id: string }>();
@@ -26,8 +27,84 @@ export default function PropertyDetail() {
 
   // Find property by ID from URL params
   const property = useMemo(() => {
-    return allProperties.find(p => p.id === parseInt(params?.id || '0'));
+    return allProperties.find(p => p.sanityId === params?.id);
   }, [allProperties, params?.id]);
+
+  // Find the raw Sanity property for full image array access
+  const rawProperty = useMemo(() => {
+    if (!Array.isArray(propertiesRaw)) return null;
+    return propertiesRaw.find((p: any) => p._id === params?.id) || null;
+  }, [propertiesRaw, params?.id]);
+
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  // Resolve image sources (handle single image or array)
+  const resolveImageSources = (imgSource: any): string[] => {
+    if (!imgSource) return [];
+    const toArray = Array.isArray(imgSource) ? imgSource : [imgSource];
+    const results: string[] = [];
+    for (const item of toArray) {
+      try {
+        if (!item) continue;
+        if (typeof item === 'string') {
+          try {
+            results.push(urlFor(item).width(1200).url());
+            continue;
+          } catch {}
+          results.push(item);
+          continue;
+        }
+        const asAny = item as any;
+        if (asAny.url && typeof asAny.url === 'string') {
+          results.push(asAny.url);
+          continue;
+        }
+        if (asAny.asset && typeof asAny.asset._ref === 'string') {
+          const ref: string = asAny.asset._ref;
+          if (ref.startsWith('image-')) {
+            results.push(urlFor(asAny).width(1200).url());
+            continue;
+          }
+          if (ref.startsWith('file-')) {
+            const parts = ref.split('-');
+            if (parts.length >= 3) {
+              const ext = parts.pop();
+              const assetId = parts.slice(1).join('-');
+              results.push(`https://cdn.sanity.io/files/${PROJECT_ID}/${DATASET}/${assetId}.${ext}`);
+              continue;
+            }
+          }
+        }
+        if (asAny._ref && typeof asAny._ref === 'string') {
+          const ref: string = asAny._ref;
+          if (ref.startsWith('image-')) {
+            results.push(urlFor({ asset: { _ref: ref } }).width(1200).url());
+            continue;
+          }
+        }
+        // Fallback to builder
+        results.push(urlFor(asAny).width(1200).url());
+      } catch (err) {
+        // ignore single failures
+      }
+    }
+    return results.filter(Boolean);
+  };
+
+  const imageGallery = rawProperty ? resolveImageSources(rawProperty.image) : (property ? [property.imageUrl].filter(Boolean) as string[] : []);
+
+  // Lightbox keyboard handlers (hook placed after imageGallery is defined)
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsLightboxOpen(false);
+      if (e.key === 'ArrowRight') setSelectedImageIndex((i) => (i + 1) % Math.max(imageGallery.length, 1));
+      if (e.key === 'ArrowLeft') setSelectedImageIndex((i) => (i - 1 + Math.max(imageGallery.length, 1)) % Math.max(imageGallery.length, 1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isLightboxOpen, imageGallery.length]);
 
   const convertPrice = (price: number | null) => {
     if (!price) return 0;
@@ -132,11 +209,30 @@ export default function PropertyDetail() {
       <main className="container mx-auto px-4 py-12">
         {/* Image Gallery */}
         <div className="mb-8">
-          <img
-            src={property.imageUrl || 'https://via.placeholder.com/1200x600?text=No+Image'}
-            alt={getTitle(property)}
-            className="w-full h-96 object-cover rounded-lg shadow-lg"
-          />
+          <div className="w-full h-96 rounded-lg shadow-lg overflow-hidden mb-4">
+            <img
+              src={imageGallery[selectedImageIndex] || property.imageUrl || 'https://via.placeholder.com/1200x600?text=No+Image'}
+              alt={getTitle(property)}
+              className="w-full h-full object-cover cursor-pointer"
+              onClick={() => {
+                if (imageGallery.length > 0) setIsLightboxOpen(true);
+              }}
+            />
+          </div>
+
+          {imageGallery.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto">
+              {imageGallery.map((src, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedImageIndex(idx)}
+                  className={`flex-shrink-0 rounded-lg overflow-hidden border-2 ${idx === selectedImageIndex ? 'border-[#d4af37]' : 'border-transparent'}`}
+                >
+                  <img src={src} alt={`${getTitle(property)} ${idx + 1}`} className="w-32 h-20 object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -305,6 +401,55 @@ export default function PropertyDetail() {
 
       <WhatsAppButton />
       <Footer />
+
+      {isLightboxOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <button
+            className="absolute top-6 right-6 text-white bg-black bg-opacity-30 rounded-full p-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsLightboxOpen(false);
+            }}
+            aria-label="Close"
+          >
+            <X size={24} />
+          </button>
+
+          <button
+            className="absolute left-6 text-white bg-black bg-opacity-30 rounded-full p-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedImageIndex((i) => (i - 1 + Math.max(imageGallery.length, 1)) % Math.max(imageGallery.length, 1));
+            }}
+            aria-label="Previous"
+          >
+            <ChevronLeft size={28} />
+          </button>
+
+          <img
+            src={imageGallery[selectedImageIndex] || property.imageUrl || 'https://via.placeholder.com/1600x900?text=No+Image'}
+            alt={getTitle(property)}
+            className="max-w-[90%] max-h-[90%] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          <button
+            className="absolute right-6 text-white bg-black bg-opacity-30 rounded-full p-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedImageIndex((i) => (i + 1) % Math.max(imageGallery.length, 1));
+            }}
+            aria-label="Next"
+          >
+            <ChevronRight size={28} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+// Lightbox overlay rendered at end of file via portal-less inline component
